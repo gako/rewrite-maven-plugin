@@ -103,13 +103,12 @@ public class RewriteRunMojo extends AbstractRewriteMojo {
                     Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
                     File afterParentDir = afterLocation.toFile().getParentFile();
                     // Rename the directory if its name case has been changed, e.g. camel case to lower case.
-                    if (afterParentDir.exists() && afterParentDir.getAbsolutePath().equalsIgnoreCase((originalParentDir.getAbsolutePath()))
-                        && !afterParentDir.getAbsolutePath().equals(originalParentDir.getAbsolutePath())) {
-                        if (!originalParentDir.renameTo(afterParentDir)) {
+                    if (isCaseInsensitiveOS() && isOnlyDifferenceCase(originalParentDir, afterParentDir)) {
+                        if (!renameFiles(results.projectRoot.toFile(), originalParentDir, afterParentDir)) {
                             throw new RuntimeException("Unable to rename directory from " + originalParentDir.getAbsolutePath() + " To: " + afterParentDir.getAbsolutePath());
                         }
-                    } else if (!afterParentDir.exists() && !afterParentDir.mkdirs()) {
-                        throw new RuntimeException("Unable to create directory " + afterParentDir.getAbsolutePath());
+                    } else {
+                        afterParentDir.mkdirs();
                     }
                     try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(afterLocation)) {
                         sourceFileWriter.write(result.getAfter().printAll());

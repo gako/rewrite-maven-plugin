@@ -236,7 +236,7 @@ public abstract class AbstractRewriteMojo extends ConfigurableRewriteMojo {
                     generated.add(result);
                 } else if (result.getBefore() != null && result.getAfter() == null) {
                     deleted.add(result);
-                } else if (result.getBefore() != null && !result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath())) {
+                } else if (result.getBefore() != null && !isSamePath(result.getBefore().getSourcePath(), result.getAfter().getSourcePath())) {
                     moved.add(result);
                 } else {
                     refactoredInPlace.add(result);
@@ -251,6 +251,17 @@ public abstract class AbstractRewriteMojo extends ConfigurableRewriteMojo {
         public boolean isNotEmpty() {
             return !generated.isEmpty() || !deleted.isEmpty() || !moved.isEmpty() || !refactoredInPlace.isEmpty();
         }
+
+        private boolean isSamePath(Path beforePath, Path afterPath) {
+            if (beforePath != null && afterPath != null) {
+                if (isCaseInsensitiveOS()) {
+                    String beforefile = beforePath.toFile().getAbsolutePath();
+                    String afterfile = afterPath.toFile().getAbsolutePath();
+                    return Objects.equals(beforefile, afterfile);
+                }
+            }
+            return Objects.equals(beforePath, afterPath);
+        }
     }
 
     protected void logRecipesThatMadeChanges(Result result) {
@@ -264,6 +275,53 @@ public abstract class AbstractRewriteMojo extends ConfigurableRewriteMojo {
                 .filter(r -> r.getName().equalsIgnoreCase(recipe))
                 .findAny()
                 .orElseThrow(() -> new MojoExecutionException(String.format(RECIPE_NOT_FOUND_EXCEPTION_MSG, recipe)));
+    }
+
+    private static List<File> splitFile(File rootFile, File file) {
+        List<File> parents = new ArrayList<>();
+        if (file != null) {
+            parents.add(file);
+        }
+
+        while (file != null && file.getParentFile() != null) {
+
+            if (rootFile != null && file.getParentFile().equals(rootFile)) {
+                break;
+            }
+
+            parents.add(file.getParentFile());
+            file = file.getParentFile();
+        }
+
+        Collections.reverse(parents);
+        return parents;
+    }
+
+    protected static boolean isCaseInsensitiveOS() {
+        // Path is implemented as sun.nio.fs.WindowsPath under Windows
+        return Paths.get("c").getClass().getSimpleName().contains("Windows");
+    }
+
+    protected static boolean isOnlyDifferenceCase(File a, File b) {
+        return (a.getAbsolutePath().equalsIgnoreCase(b.getAbsolutePath()) && !a.getAbsolutePath().equals(b.getAbsolutePath()));
+    }
+
+    protected static boolean renameFiles(File root, File source, File target) {
+        // only case switch
+        if (isOnlyDifferenceCase(source, target)) {
+
+            List<File> sources = splitFile(root, source);
+            List<File> targets = splitFile(root, target);
+
+            for (int i = 0; i < sources.size(); i++) {
+                sources.get(i).renameTo(targets.get(i));
+            }
+
+            return true;
+        } else {
+            return false;
+        }
+
     }
 
 }
